@@ -99,6 +99,8 @@ export default function TabLayout() {
       <Tabs.Screen name="crew" options={{ href: null }} />
       <Tabs.Screen name="tours" options={{ href: null }} />
       <Tabs.Screen name="crews" options={{ href: null }} />
+      <Tabs.Screen name="inputs" options={{ href: null }} />
+      <Tabs.Screen name="upload" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -25,6 +25,8 @@ import {
   Trash2,
   Mail,
   UserPlus,
+  Mic,
+  Upload,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -41,6 +43,7 @@ export default function DashboardScreen() {
   const crew = useTourFlowStore(s => s.crew);
   const tasks = useTourFlowStore(s => s.tasks);
   const documents = useTourFlowStore(s => s.documents);
+  const inputList = useTourFlowStore(s => s.inputList);
   const settings = useTourFlowStore(s => s.settings);
   const toggleStealthMode = useTourFlowStore(s => s.toggleStealthMode);
   const canEdit = useTourFlowStore(s => s.canEdit);
@@ -64,6 +67,7 @@ export default function DashboardScreen() {
   const gearIssues = gear.filter(g => g.condition === 'needs_repair' || g.condition === 'fair');
   const pendingTasks = tasks.filter(t => t.status !== 'completed');
   const highPriorityTasks = pendingTasks.filter(t => t.priority === 'high' || t.priority === 'urgent');
+  const usedInputChannels = inputList.filter(c => c.source.trim() !== '').length;
 
   // Double-tap Dashboard header to toggle Stealth Mode
   const handleDashboardPress = () => {
@@ -239,7 +243,7 @@ export default function DashboardScreen() {
             </Animated.View>
           )}
 
-          {/* Empty State for New Users */}
+          {/* Empty State for New Users - Guide to Create Crew First */}
           {isAuthenticated && tourMemberships.length === 0 && pendingInvitations.length === 0 && tours.length === 0 && (
             <Animated.View
               entering={FadeInDown.delay(200).duration(600)}
@@ -251,21 +255,27 @@ export default function DashboardScreen() {
                 </View>
                 <Text className="text-white text-xl font-bold text-center mb-2">Welcome to Tour Flow</Text>
                 <Text className="text-gray-400 text-center mb-6">
-                  You haven't been invited to any tours yet. Wait for an admin to invite you, or create your own tour to get started.
+                  Start by creating your crew - this represents your band or artist team. You can then create tours and invite crew members.
                 </Text>
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push('/tours');
+                    router.push('/crews');
                   }}
                   className="bg-emerald-500 py-3 px-6 rounded-xl flex-row items-center"
                 >
                   <Plus size={18} color="#fff" />
-                  <Text className="text-white font-semibold ml-2">Create Your First Tour</Text>
+                  <Text className="text-white font-semibold ml-2">Create Your Crew</Text>
                 </Pressable>
-                <Text className="text-gray-500 text-xs text-center mt-4">
-                  Creating a tour makes you its admin automatically
-                </Text>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/tours');
+                  }}
+                  className="mt-4 py-2 px-4"
+                >
+                  <Text className="text-gray-400 text-sm">or skip to create a tour directly</Text>
+                </Pressable>
               </View>
             </Animated.View>
           )}
@@ -486,6 +496,28 @@ export default function DashboardScreen() {
                   </View>
                   <Text className="text-white text-2xl font-bold">{pendingTasks.length}</Text>
                   <Text className="text-gray-500 text-sm">Open Tasks</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                className="flex-1 min-w-[45%]"
+                onPress={() => router.push('/inputs')}
+              >
+                <View className="bg-[#1a1a2e] rounded-xl p-4">
+                  <Mic size={18} color="#22c55e" />
+                  <Text className="text-white text-2xl font-bold mt-2">{usedInputChannels}/32</Text>
+                  <Text className="text-gray-500 text-sm">Input List</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                className="flex-1 min-w-[45%]"
+                onPress={() => router.push('/upload')}
+              >
+                <View className="bg-[#1a1a2e] rounded-xl p-4">
+                  <Upload size={18} color="#00d4aa" />
+                  <Text className="text-white text-lg font-bold mt-2">Import</Text>
+                  <Text className="text-gray-500 text-sm">Upload Data</Text>
                 </View>
               </Pressable>
             </View>

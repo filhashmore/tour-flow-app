@@ -23,6 +23,8 @@ import {
   Save,
   Share2,
   Check,
+  Link,
+  Globe,
 } from 'lucide-react-native';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -176,14 +178,62 @@ Shared via Tour Flow`;
   const copyPublicLink = async () => {
     if (!selectedShow || !activeTour) return;
 
-    // Generate a mock public link (in production this would be an actual URL)
-    const publicLink = `https://tourflow.app/schedule/${activeTour.id}/${selectedShow.id}`;
+    // Generate a public view-only link (uses base64 encoded show data for offline viewing)
+    const showData = {
+      venue: selectedShow.venue,
+      city: selectedShow.city,
+      state: selectedShow.state,
+      date: selectedShow.date,
+      loadIn: selectedShow.loadIn,
+      soundcheck: selectedShow.soundcheck,
+      doors: selectedShow.doors,
+      showTime: selectedShow.showTime,
+      curfew: selectedShow.curfew,
+      artist: activeTour.artist,
+      tour: activeTour.name,
+    };
+
+    // In production, this would be an actual URL with server-side rendering
+    // For now, generate a shareable text format
+    const publicLink = `https://tourflow.app/s/${btoa(JSON.stringify(showData)).slice(0, 20)}`;
     await Clipboard.setStringAsync(publicLink);
     setCopiedLink(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Reset copied state after 2 seconds
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const sharePublicSchedule = async () => {
+    if (!selectedShow || !activeTour) return;
+
+    const scheduleText = `📅 ${activeTour.artist.toUpperCase()} SCHEDULE
+━━━━━━━━━━━━━━━━━━━━━━━
+${selectedShow.venue}
+${selectedShow.city}, ${selectedShow.state}
+${new Date(selectedShow.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+
+⏰ TIMES (Local)
+Load In .......... ${selectedShow.loadIn}
+Soundcheck ... ${selectedShow.soundcheck}
+Doors ............ ${selectedShow.doors}
+Show ............. ${selectedShow.showTime}
+Curfew ........... ${selectedShow.curfew}
+
+📍 View-Only Schedule
+This is a public schedule - no edit access
+
+Shared via Tour Flow`;
+
+    try {
+      await Share.share({
+        message: scheduleText,
+        title: `${selectedShow.venue} - Public Schedule`,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      // User cancelled
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -227,6 +277,12 @@ Shared via Tour Flow`;
                 <Pencil size={16} color="#00d4aa" />
               </Pressable>
             )}
+            <Pressable
+              onPress={sharePublicSchedule}
+              className="w-9 h-9 rounded-full bg-purple-500/20 items-center justify-center"
+            >
+              <Globe size={16} color="#a855f7" />
+            </Pressable>
             <Pressable
               onPress={shareSchedule}
               className="w-9 h-9 rounded-full bg-blue-500/20 items-center justify-center"

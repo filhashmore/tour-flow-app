@@ -17,6 +17,8 @@ import {
   Trash2,
   Edit3,
   Crown,
+  Sparkles,
+  Lock,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +34,9 @@ import {
   getCrewMembers,
   getCrewDocuments,
 } from '@/lib/supabase';
+
+// Freemium limits - 1 crew free, upgrade for more
+const FREE_CREW_LIMIT = 1;
 
 export default function CrewsScreen() {
   const router = useRouter();
@@ -51,6 +56,20 @@ export default function CrewsScreen() {
   const [showCrewDetailModal, setShowCrewDetailModal] = useState(false);
   const [selectedCrew, setSelectedCrew] = useState<Crew | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // Check if user has reached free limit
+  const hasReachedFreeLimit = crews.length >= FREE_CREW_LIMIT;
+
+  const handleAddCrewPress = () => {
+    if (hasReachedFreeLimit) {
+      setShowUpgradeModal(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } else {
+      setShowAddCrewModal(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
 
   const filteredCrews = useMemo(() => {
     if (!searchQuery.trim()) return crews;
@@ -105,10 +124,7 @@ export default function CrewsScreen() {
             </View>
             {canEdit() && (
               <Pressable
-                onPress={() => {
-                  setShowAddCrewModal(true);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
+                onPress={handleAddCrewPress}
                 className="bg-emerald-500 w-10 h-10 rounded-full items-center justify-center"
               >
                 <Plus size={20} color="#fff" strokeWidth={2.5} />
@@ -177,7 +193,7 @@ export default function CrewsScreen() {
               </Text>
               {canEdit() && !searchQuery && (
                 <Pressable
-                  onPress={() => setShowAddCrewModal(true)}
+                  onPress={handleAddCrewPress}
                   className="mt-4 bg-emerald-500/20 px-4 py-2 rounded-full"
                 >
                   <Text className="text-emerald-400 font-medium">Create Your First Crew</Text>
@@ -255,6 +271,67 @@ export default function CrewsScreen() {
             }}
           />
         )}
+      </Modal>
+
+      {/* Upgrade Modal - Freemium Limit */}
+      <Modal
+        visible={showUpgradeModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowUpgradeModal(false)}
+      >
+        <View className="flex-1 bg-black/80 items-center justify-center px-8">
+          <View className="bg-[#1a1a2e] rounded-2xl p-6 w-full">
+            <View className="items-center mb-4">
+              <View className="w-16 h-16 rounded-full bg-amber-500/20 items-center justify-center mb-3">
+                <Sparkles size={32} color="#f59e0b" />
+              </View>
+              <Text className="text-white text-xl font-bold text-center">Upgrade to Pro</Text>
+              <Text className="text-gray-400 text-center mt-2">
+                You've reached the free limit of {FREE_CREW_LIMIT} crew. Upgrade to Tour Flow Pro to manage unlimited crews.
+              </Text>
+            </View>
+
+            <View className="bg-white/5 rounded-xl p-4 mb-4">
+              <Text className="text-white font-medium mb-2">Tour Flow Pro includes:</Text>
+              <View className="flex-row items-center mb-2">
+                <Check size={16} color="#22c55e" />
+                <Text className="text-gray-300 ml-2">Unlimited crews</Text>
+              </View>
+              <View className="flex-row items-center mb-2">
+                <Check size={16} color="#22c55e" />
+                <Text className="text-gray-300 ml-2">Unlimited tours</Text>
+              </View>
+              <View className="flex-row items-center mb-2">
+                <Check size={16} color="#22c55e" />
+                <Text className="text-gray-300 ml-2">Priority support</Text>
+              </View>
+              <View className="flex-row items-center">
+                <Check size={16} color="#22c55e" />
+                <Text className="text-gray-300 ml-2">Advanced analytics</Text>
+              </View>
+            </View>
+
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={() => setShowUpgradeModal(false)}
+                className="flex-1 bg-white/10 py-3 rounded-xl items-center"
+              >
+                <Text className="text-white font-semibold">Maybe Later</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowUpgradeModal(false);
+                  // In production, this would open the upgrade flow
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                className="flex-1 bg-amber-500 py-3 rounded-xl items-center"
+              >
+                <Text className="text-white font-semibold">Upgrade</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
