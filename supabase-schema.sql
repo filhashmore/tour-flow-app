@@ -426,6 +426,159 @@ INSERT INTO tours (name, artist, start_date, end_date, status, admin_id) VALUES
 */
 
 -- ============================================
+-- CREWS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS crews (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  artist_name TEXT NOT NULL,
+  admin_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- CREW MEMBERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS crew_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  crew_id UUID NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  job_title TEXT,
+  joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(crew_id, user_id)
+);
+
+-- ============================================
+-- CREW INVITATIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS crew_invitations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email TEXT NOT NULL,
+  crew_id UUID NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  job_title TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '7 days')
+);
+
+-- ============================================
+-- CREW DOCUMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS crew_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  crew_id UUID NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add crew_id to tours table
+ALTER TABLE tours ADD COLUMN IF NOT EXISTS crew_id UUID REFERENCES crews(id) ON DELETE SET NULL;
+
+-- ============================================
+-- CREW RLS POLICIES
+-- ============================================
+ALTER TABLE crews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crew_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crew_invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crew_documents ENABLE ROW LEVEL SECURITY;
+
+-- CREWS: Users can only see crews they're members of
+CREATE POLICY "Users can view crews they are members of" ON crews
+  FOR SELECT TO authenticated
+  USING (
+    id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid())
+    OR admin_id = auth.uid()
+  );
+
+CREATE POLICY "Users can create crews" ON crews
+  FOR INSERT TO authenticated WITH CHECK (admin_id = auth.uid());
+
+CREATE POLICY "Admins can update their crews" ON crews
+  FOR UPDATE TO authenticated
+  USING (
+    admin_id = auth.uid() OR
+    id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete their crews" ON crews
+  FOR DELETE TO authenticated
+  USING (admin_id = auth.uid());
+
+-- CREW MEMBERS: Users can see members of crews they belong to
+CREATE POLICY "Users can view members of their crews" ON crew_members
+  FOR SELECT TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins can add crew members" ON crew_members
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+    OR crew_id IN (SELECT id FROM crews WHERE admin_id = auth.uid())
+  );
+
+CREATE POLICY "Admins can update crew members" ON crew_members
+  FOR UPDATE TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can remove crew members" ON crew_members
+  FOR DELETE TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+-- CREW INVITATIONS
+CREATE POLICY "Users can view crew invitations sent to them" ON crew_invitations
+  FOR SELECT TO authenticated
+  USING (
+    email = (SELECT email FROM profiles WHERE id = auth.uid())
+    OR crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can create crew invitations" ON crew_invitations
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+    OR crew_id IN (SELECT id FROM crews WHERE admin_id = auth.uid())
+  );
+
+CREATE POLICY "Users can update crew invitations" ON crew_invitations
+  FOR UPDATE TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+    OR email = (SELECT email FROM profiles WHERE id = auth.uid())
+  );
+
+-- CREW DOCUMENTS
+CREATE POLICY "Users can view documents of their crews" ON crew_documents
+  FOR SELECT TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins can manage crew documents" ON crew_documents
+  FOR ALL TO authenticated
+  USING (
+    crew_id IN (SELECT crew_id FROM crew_members WHERE user_id = auth.uid() AND role = 'admin')
+  );
+
+-- Crew document triggers
+CREATE TRIGGER update_crews_updated_at BEFORE UPDATE ON crews
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER update_crew_documents_updated_at BEFORE UPDATE ON crew_documents
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================
 -- INDEXES for performance
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_tour_members_user_id ON tour_members(user_id);
@@ -437,3 +590,7 @@ CREATE INDEX IF NOT EXISTS idx_invitations_tour_id ON invitations(tour_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_tour_id ON tasks(tour_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_gear_tour_id ON gear(tour_id);
+CREATE INDEX IF NOT EXISTS idx_crew_members_user_id ON crew_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_crew_members_crew_id ON crew_members(crew_id);
+CREATE INDEX IF NOT EXISTS idx_crew_invitations_email ON crew_invitations(email);
+CREATE INDEX IF NOT EXISTS idx_tours_crew_id ON tours(crew_id);
